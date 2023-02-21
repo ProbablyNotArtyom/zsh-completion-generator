@@ -64,22 +64,22 @@ gencomp_refresh() {
 alias compgen='gencomp'
 gencomp() {
     if [[ -z "$1" || "$1" = "-h" || "$1" = "--help" ]]; then
-        echo "Usage: gencomp program [--argument-for-help-text]"
-        echo
+        echo "Usage: gencomp [-h|--help] COMMAND"
+        echo ""
+        echo "Generates ZSH completions for [COMMAND] where [COMMAND] is the name of a program/function within the system PATH"
         return 1
+    else
+        local help=--help
+        for f in $@; do
+            f=$(basename $f)
+            "$f" $help 2>&1 | $python $ZSH_COMPLETION_GENERATOR_SRCDIR/help2comp.py $f >!\
+            $ZSH_COMPLETION_GENERATOR_DIR/_$f || ( local code="${pipestatus[1]}"
+                    command rm -f $ZSH_COMPLETION_GENERATOR_DIR/_$f &&\
+                    echo "No options found for '$f'. Was fetching from following invocation: \`$f $help'."\
+                        "\nThe program reacted with exit code: $code."
+                )
+        done
     fi
-
-    local help=--help
-    if [[ -n "$2" ]]; then
-        help=$2
-    fi
-
-    "$1" $help 2>&1 | $python $ZSH_COMPLETION_GENERATOR_SRCDIR/help2comp.py $1 >!\
-        $ZSH_COMPLETION_GENERATOR_DIR/_$1 || ( local code="${pipestatus[1]}"
-                command rm -f $ZSH_COMPLETION_GENERATOR_DIR/_$1 &&\
-                echo "No options found for '$1'. Was fetching from following invocation: \`$1 $help'."\
-                    "\nThe program reacted with exit code: $code."
-            )
 }
 
 
