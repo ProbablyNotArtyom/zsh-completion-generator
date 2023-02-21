@@ -3,10 +3,12 @@
 # zsh completions for 'gencomp'
 local arguments
 
+
+
 arguments=(
   '-h[help (this text)]'
   '--help[help (this text)]'
-  '*:COMMAND:_files'
+  '*:COMMAND:_command_names'
 )
 
 _arguments -s $arguments
