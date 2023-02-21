@@ -10,60 +10,58 @@
 0="${${ZERO:-${0:#$ZSH_ARGZERO}}:-${(%):-%N}}"
 ZSH_COMPLETION_GENERATOR_SRCDIR=${0:A:h}
 
-if [ -z $GENCOMPL_FPATH ]; then
-    ZSH_COMPLETION_GENERATOR_DIR="$ZSH_COMPLETION_GENERATOR_SRCDIR/completions"
-else
-    ZSH_COMPLETION_GENERATOR_DIR="$GENCOMPL_FPATH"
-fi
+ZSH_COMPLETION_GENERATOR_DIR="$ZSH_COMPLETION_GENERATOR_SRCDIR/completions"
+local python=python
+
+[[ ! -z $GENCOMPL_FPATH ]] && ZSH_COMPLETION_GENERATOR_DIR="$GENCOMPL_FPATH"
+[[ ! -z $GENCOMPL_PY ]] && python=$GENCOMPL_PY
+
 # don't override existing functions - append
 [[ -z "${fpath[(r)$ZSH_COMPLETION_GENERATOR_DIR]}" ]] && fpath=($fpath $ZSH_COMPLETION_GENERATOR_DIR)
 
-# which python to use
-local python
-if [[ -z $GENCOMPL_PY ]]; then
-    python=python
-else
-    python=$GENCOMPL_PY
-fi
 [[ ! -d $ZSH_COMPLETION_GENERATOR_DIR ]] && command mkdir -p $ZSH_COMPLETION_GENERATOR_DIR
 
 # a) define default programs here (or provide the below zstyle in zshrc):
 local -a programs
-# -a denotes there's array in the Zstyle
 zstyle -a :plugin:zsh-completion-generator programs programs
 (( ${#programs} )) || programs=( "ggrep" "groff -h" "nl" )
 
-# anonymous function, to have private variable scope
-() {
-local prg name help code
-local -a i
-for prg in "${programs[@]}"; do
-    name=$prg
-    help=--help
-    # Use "% *" trick to skip using regex
-    if [[ ${prg% *} != $prg ]]; then
-        i=( "${(@s/ /)prg}" )
-        name=$i[1]
-        if [[ -n "$i[2]" ]]; then
-            help="$i[2]"
+gencomp_default() {
+    local -a i
+    for prog in "${programs[@]}"; do
+        local name=$prog
+        local help=--help
+        # Use "% *" trick to skip using regex
+        if [[ ${prog% *} != $prog ]]; then
+            i=( "${(@s/ /)prog}" )
+            name=$i[1]
+            if [[ -n "$i[2]" ]]; then
+                help="$i[2]"
+            fi
         fi
-    fi
-
-    test -f $ZSH_COMPLETION_GENERATOR_DIR/_$name ||\
-        $name $help 2>&1 | $python $ZSH_COMPLETION_GENERATOR_SRCDIR/help2comp.py $name >!\
-            $ZSH_COMPLETION_GENERATOR_DIR/_$name || {
-                    code="${pipestatus[1]}"
-                    command rm -f $ZSH_COMPLETION_GENERATOR_DIR/_$name
-                    # Store error message into "err_$name", once
-                    [[ ! -f $ZSH_COMPLETION_GENERATOR_DIR/err_$name ]] &&\
-                        echo "No options found for $name. Was fetching from following invocation:" \
-                             "\`$name $help'.\nProgram reacted with exit code: $code." >!\
-                                    $ZSH_COMPLETION_GENERATOR_DIR/err_$name
-                }
-done
+    
+        test -f $ZSH_COMPLETION_GENERATOR_DIR/_$name ||\
+            $name $help 2>&1 | $python $ZSH_COMPLETION_GENERATOR_SRCDIR/help2comp.py $name >!\
+                $ZSH_COMPLETION_GENERATOR_DIR/_$name || {
+                        local code="${pipestatus[1]}"
+                        command rm -f $ZSH_COMPLETION_GENERATOR_DIR/_$name
+                        # Store error message into "err_$name", once
+                        [[ ! -f $ZSH_COMPLETION_GENERATOR_DIR/err_$name ]] &&\
+                            echo "No options found for $name. Was fetching from following invocation:" \
+                                 "\`$name $help'.\nProgram reacted with exit code: $code." >!\
+                                        $ZSH_COMPLETION_GENERATOR_DIR/err_$name
+                    }
+    done
 }
 
-# b) or use function in shell:
+gencomp_refresh() {
+    local -a compfiles=(${(@f)$(find $ZSH_COMPLETION_GENERATOR_DIR -maxdepth 1 -iname "_*" -printf '%f\n' | sort)})
+    for prog in "${compfiles[@]}"; do
+        gencomp "${prog[2,-1]}"
+    done
+}
+
+alias compgen='gencomp'
 gencomp() {
     if [[ -z "$1" || "$1" = "-h" || "$1" = "--help" ]]; then
         echo "Usage: gencomp program [--argument-for-help-text]"
@@ -83,4 +81,7 @@ gencomp() {
                     "\nThe program reacted with exit code: $code."
             )
 }
+
+
+
 # date +%H:%M:%S.%N   # profiling info
